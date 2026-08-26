@@ -188,7 +188,134 @@ print('Risultati con Cross-validation')
 for k in ['test_accuracy', 'test_precision_defect', 'test_recall_defect', 'test_f1_defect']:
     print(f'{k}: media {np.mean(results[k]):.4f} (std {np.std(results[k]):.4f})')
 
+# Utilizzo di Logistic Regression, standardizzato in fase di training con standard Scaler
+# Utilizzo dello stratified k-fold, per migliorare il modello
+# Parte finale con la ricerca delle features più importanti che incidono maggiormente sui difetti
+
+# Creazione di un nuovo df (X) contente le features, dal target (y)
+X = df.drop(TARGET_COLUMN, axis=1)
+y = df[TARGET_COLUMN]
+
+# Conversione in stringa delle colonne categoriche
+for col in CAT_COLS:
+    if col in X.columns:
+        X[col] = X[col].astype(str)
+
+# Gestione delle colonne numeriche
+remaining_cols = [c for c in X.columns if c not in CAT_COLS and c not in STAT_COLS]
+for col in remaining_cols + STAT_COLS:
+    if col in X.columns:
+        X[col] = pd.to_numeric(X[col], errors='coerce')
+
+preprocessor = ColumnTransformer(transformers=[('num', Pipeline(steps=[('imputer', SimpleImputer(strategy='median')),
+                                                                ('scaler', StandardScaler())]), remaining_cols),                 # Imputazione + Scaling
+                                               ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), CAT_COLS),   # OneHotEncoding per le categoriche
+                                               ('stat', 'passthrough', STAT_COLS)], remainder='passthrough')                     # Le STAT_COLS non vengono toccate 
+                                 
+# Split data in training e test set
+X_train, X_test, y_train, y_test = train_test_split (X, y, test_size=0.2, random_state=42, stratify=y)
+print(f'Training set: {X_train.shape[0]} features')
+print(f'Test set {X_test.shape[0]} features')
+print(f'- Categoriche (OHE): {CAT_COLS}')
+print(f'- Statiche: {STAT_COLS}')
+print(f'- Numeriche: {len(remaining_cols)} colonne')
+print()
+
+# Pipeline preprocessing + modello LR
+model_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+                                 ('classifier', LogisticRegression(random_state=42, solver='liblinear', class_weight='balanced'))])
 
 
+# Addestramento del modello
+print("Addestramento del modello in coso...")
+print()
+model_pipeline.fit(X_train, y_train)
+print('Modello Logistic Regression con Standard Scaler addestrato con successo')
+
+# Valutazione
+y_pred = model_pipeline.predict(X_test)
+
+print('\nClassification Report (Logistic Regression)')
+print()
+print(f'Accuracy: {accuracy_score(y_test, y_pred):.4f}')
+print()
+print(f'Recall su Difetto: {recall_score(y_test, y_pred):.4f}')
+print()
+print(f'F1-score su Difetto: {f1_score(y_test, y_pred):.4f}')
+
+# Confusion Matrix
+cm_lr = confusion_matrix(y_test, y_pred)
+print('\nConfusion Matrix:')
+print(cm_lr)
+print()
+disp = ConfusionMatrixDisplay(confusion_matrix=cm_lr, display_labels=model_pipeline.classes_)
+disp.plot(cmap='Blues')
+plt.show()
 
 
+# Cross-validation strategy
+
+# Definizione della Pipeline
+cv_model_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+                                 ('classifier', LogisticRegression(random_state=42, solver='liblinear', class_weight='balanced'))])
+
+# Metriche di valutazione
+scoring = {'accuracy': 'accuracy', 'precision_defect': make_scorer(precision_score, pos_label=1),
+           'recall_defect': make_scorer(recall_score, pos_label=1),
+           'f1_defect': make_scorer(f1_score, pos_label=1)}
+
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+print('\n----Esecuzione Stratified k-Fold Cross-Validation----\n')
+
+results = cross_validate(cv_model_pipeline, X, y, cv=skf, scoring=scoring, 
+                         return_train_score=False, return_estimator=True)
+
+print('Cross-Validation Results:')
+print()
+print(f'Accuracy media (Difetto): {np.mean(results['test_accuracy']):.4f} (Std: {np.std(results['test_accuracy']):.4f})')
+print()
+print(f'Precision media (Difetto): {np.mean(results['test_precision_defect']):.4f} (Std: {np.std(results['test_precision_defect']):.4f})')
+print()
+print(f'Recall media (Difetto): {np.mean(results['test_recall_defect']):.4f} (Std: {np.std(results['test_recall_defect']):.4f})')
+print()
+print(f'F1-score media (Difetto): {np.mean(results['test_f1_defect']):.4f} (Std: {np.std(results['test_f1_defect']):.4f})')
+
+# Per visualizzare una ConfusionMatrix, utilizziamo il modello dell'ultimo fold
+last_fold_estimator = results['estimator'][-1]
+for train_index, test_index in skf.split(X, y):
+    pass
+X_test_last_fold = X.iloc[test_index]
+y_test_last_fold = y.iloc[test_index]
+y_pred_last_fold = last_fold_estimator.predict(X_test_last_fold)
+
+print('\nConfusion Matrix ultomo fold CV:')
+cm_last_fold = confusion_matrix(y_test_last_fold, y_pred_last_fold)
+display_labels = np.unique(y)
+disp_cv = ConfusionMatrixDisplay(confusion_matrix=cm_last_fold, display_labels=display_labels)
+disp_cv.plot(cmap='Blues')
+plt.title('Confusion Matrix (Ultimo Fold CV)')
+plt.show()
+
+# Analisi delle features più importanti per la predizione dei difetti
+preprocessor = model_pipeline.named_steps['preprocessor']
+
+# Recupero dei nomi delle feature
+# Categoriche
+ohe_transformer = preprocessor.named_transformers_['cat']
+cat_feature_names = ohe_transformer.get_feature_names_out(CAT_COLS).tolist()
+# Statiche
+stat_feature_names = STAT_COLS
+# Numeriche(Standardizzate)
+num_feature_names = remaining_cols
+
+all_feature_names = cat_feature_names + stat_feature_names + num_feature_names
+
+# Estrazione dei coefficienti
+coefficients = model_pipeline.named_steps['classifier'].coef_[0]
+
+if len(all_feature_names) == len(coefficients):
+    feature_importance_df = pd.DataFrame({
+        'Feature': all_feature_names,
+        'Coefficient': coefficients
+    })
