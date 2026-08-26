@@ -1,51 +1,23 @@
-#caricamento dei dati
-
+# Preprocessing
 import pandas as pd
-df = pd.read_csv('C:\\Users\\administrator\\.vscode\\DATI_RIS.csv', delimiter=';', decimal=',')
-
-print(df.head())
-print(df.shape)
-
-num_righe, num_colonne = df.shape
-print(f"Numero di righe: {num_righe}")
-print(f"Numero di colonne: {num_colonne}")
-#print(df.columns)
-
-#se serve richiamare una colonna ricorda che ti serve una variabile col nome della colonna
-
-colonna= df['col0']
-print(colonna)
-
-#verifica dei duplicati
-#in questo caso richiamo la colonna col0, per verificare che non ci siano duplicati
-duplicati=df['col0'].duplicated()
-print("Duplicati nella colonna 'col0':", duplicati)
-
-#rimozione delle colonne col1, col2, col3, col4, col5, col6, col7
-df=df.drop(['col1', 'col2', 'col3', 'col4', 'col5', 'col6', 'col7'], axis=1)
-print(df.head)
-#print(df.info)
-
-
-# Normalizzazione dei dati con Standard Scaler
 import numpy as np
-import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay, make_scorer
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Selezione delle colonne da normalizzare, escludendo quelle con identificativo col, spessore, ciclo,
-# difetto e posizione in forno
-df.columns = df.columns.str.strip()
+# CONFIGURAZIONE
+CAT_COLS = ['R', 'W', 'V', 'Z', 'AA']
+STAT_COLS = ['SOGGETTO','STAT1','STAT2']
+CSV_PATH = 'https://raw.githubusercontent.com/Giangysam/Correlations/main/DATI_RIS_coperti.xlsx'
+TARGET_COLUMN = 'TARGET'
 
-columns_not_normalize = ['col0', 'SPESSORE', 'CICLO', 'DIFETTO', 'POSITION']
-remaining_columns = [col for col in df.columns if col not in columns_not_normalize]
-
-
-#Normalizzazione delle colonne
-scaler = StandardScaler()
-df[remaining_columns] = scaler.fit_transform(df[remaining_columns])
-print("Normalizzazione del dataframe")
-print(df.head(10))
-
-
-
-   
+# CARICAMENTO DEI DATI
+df = pd.read_excel(CSV_PATH)
+print("Dataset caricato con successo.")
+display(df.head())
+print(f"Dimensioni del dataset: {df.shape}")
