@@ -142,4 +142,5 @@ The project follows the following workflow:
 7. Performance evaluation using Precision, Recall and F1-Score.
 8. Model optimization and continuous improvement.
 
-
+Please see the Code Review and Research Feedback issue to share comments, suggestions, or proposed improvements.
+https://github.com/Giangysam/Correlations/issues/5
