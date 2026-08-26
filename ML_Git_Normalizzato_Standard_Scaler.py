@@ -19,5 +19,10 @@ TARGET_COLUMN = 'TARGET'
 # CARICAMENTO DEI DATI
 df = pd.read_excel(CSV_PATH)
 print("Dataset caricato con successo.")
-display(df.head())
-print(f"Dimensioni del dataset: {df.shape}")
+print (df.head())
+print(df.info())
+print()
+num_righe, num_colonne = df.shape
+print(f"Numero di righe: {num_righe}")
+print(f"Numero di colonne: {num_colonne}")
+print()
